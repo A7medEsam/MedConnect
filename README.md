@@ -20,7 +20,7 @@
 | :--- | :--- | :--- |
 | **Anas Al-Mahdi** | Team Lead, System Architect & Pitch Presenter | Initial modular MVP foundation, clinical validation with physicians, documentation, and final hackathon pitch. |
 | **Ahmed Esam** | Repository & DevOps Lead / UI Styling | GitHub repository management, deployment setup, and responsive visual refinements (`styles.css`). |
-| **Mostafa Fares Eskander** | Product Owner & Full-Stack Developer | Application workflow, hospital-aligned user journeys, booking & pricing logic (`app.js`). |
+| **Mustafa Fares Ali Eskander** | Product Owner & Full-Stack Developer | Application workflow, hospital-aligned user journeys, booking & pricing logic (`app.js`). |
 | **Abdullah Ali Al-Shalafi** | Data & AI Schema Developer | Clinical datasets, bilingual medical content, guideline references, and AI JSON schema alignment (`data.js`). |
 | **Ahmed Ameen Masoud** | AI Integration Engineer | Live `Gemini API` integration, multimodal report analysis, and fallback handling (`api.js`). |
 
@@ -42,13 +42,17 @@ MedConnect/
 ## ▶️ How to Run Locally
 
 1. Clone or download the repository:
+
    ```bash
    git clone [https://github.com/A7medEsam/MedConnect.git](https://github.com/A7medEsam/MedConnect.git)
    ```
+
 2. Open the folder in **VS Code** and launch with **Live Server**, or run a local Python HTTP server:
+
    ```bash
    python -m http.server 8000
    ```
+
 3. Visit `http://localhost:8000` in your browser.
 
 ---
