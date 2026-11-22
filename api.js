@@ -30,6 +30,7 @@ window.ApiService = (function () {
     APPOINTMENTS: "mc:appointments", // array of patient bookings
     DOCTOR_CREDS: "mc:doctorCreds", // verification credentials (demo)
     DOCTOR_FEES: "mc:doctorFees", // map doctorId -> consultationFee
+    USER_PAYMENT: "mc:userPayment", // saved patient payment method
   };
 
   /* Internal: safe JSON parse (never throws). */
@@ -117,6 +118,32 @@ window.ApiService = (function () {
   }
   function saveDoctorCreds(creds) {
     return write(KEYS.DOCTOR_CREDS, creds);
+  }
+
+  /* getUserPayment() -> {type, detail, verified}|null
+   * Read the patient's saved default payment method. */
+  function getUserPayment() {
+    var method = read(KEYS.USER_PAYMENT, null);
+    if (!method || (method.type !== "card" && method.type !== "paypal") ||
+        typeof method.detail !== "string" || typeof method.verified !== "boolean") {
+      return null;
+    }
+    return method;
+  }
+
+  /* saveUserPayment(methodObj) -> saved object|null
+   * Stores only the supported payment-method shape. */
+  function saveUserPayment(methodObj) {
+    if (!methodObj || (methodObj.type !== "card" && methodObj.type !== "paypal") ||
+        typeof methodObj.detail !== "string" || !methodObj.detail.trim()) {
+      return null;
+    }
+    var saved = {
+      type: methodObj.type,
+      detail: methodObj.detail.trim(),
+      verified: !!methodObj.verified,
+    };
+    return write(KEYS.USER_PAYMENT, saved) ? saved : null;
   }
 
   /* ===================================================================
@@ -377,6 +404,9 @@ window.ApiService = (function () {
     // doctor creds
     getDoctorCreds: getDoctorCreds,
     saveDoctorCreds: saveDoctorCreds,
+    // patient payment method
+    getUserPayment: getUserPayment,
+    saveUserPayment: saveUserPayment,
     // doctor fees
     getDoctorFees: getDoctorFees,
     saveDoctorFee: saveDoctorFee,

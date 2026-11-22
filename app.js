@@ -783,18 +783,26 @@ function BookingModal(_a) {
   var [type, setType] = useState("in-person");
   var [notes, setNotes] = useState("");
   var [submitting, setSubmitting] = useState(false);
+  var [paymentMethod, setPaymentMethod] = useState("clinic");
+  var [paymentDetail, setPaymentDetail] = useState("");
+  var [savedPayment, setSavedPayment] = useState(null);
 
   /* Reset the form whenever the modal reopens so a fresh booking starts
    * with empty fields. Runs only when `open` flips to true. */
   useEffect(function () {
     if (open) {
       setDate(""); setTime(""); setType("in-person"); setNotes(""); setSubmitting(false);
+      var method = ApiService.getUserPayment();
+      var verifiedMethod = method && method.verified ? method : null;
+      setSavedPayment(verifiedMethod);
+      setPaymentMethod(verifiedMethod ? verifiedMethod.type : "clinic");
+      setPaymentDetail(verifiedMethod ? verifiedMethod.detail : "");
     }
   }, [open]);
 
   function handleSubmit() {
     if (!doctor) return;
-    if (!date || !time) { toast.error(t("booking.date")); return; }
+    if (!date) { toast.error(t("booking.date")); return; }
     setSubmitting(true);
     var booking = {
       id: "bk" + Date.now(),
@@ -808,6 +816,7 @@ function BookingModal(_a) {
       status: { en: "Pending", ar: "قيد التأكيد" },
     };
     ApiService.saveAppointment(booking); // persists -> surfaces in PatientHome
+    window.dispatchEvent(new Event("mc:appointments-updated"));
     setTimeout(function () {
       setSubmitting(false);
       toast.success(t("booking.confirmed"));
@@ -850,6 +859,35 @@ function BookingModal(_a) {
               <SelectItem value="video">{t("booking.video")}</SelectItem>
             </Select>
           </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <Label>{p({ en: "Payment Method", ar: "طريقة الدفع" })}</Label>
+            {savedPayment && paymentMethod === savedPayment.type && paymentDetail === savedPayment.detail && (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                {p({ en: "Verified", ar: "موثّق" })}
+              </span>
+            )}
+          </div>
+          <Select value={paymentMethod} onValueChange={function (value) {
+            setPaymentMethod(value);
+            setPaymentDetail(savedPayment && value === savedPayment.type ? savedPayment.detail : "");
+          }}>
+            <SelectItem value="clinic">{p({ en: "Pay at Clinic", ar: "الدفع في العيادة" })}</SelectItem>
+            <SelectItem value="card">{p({ en: "Credit Card", ar: "بطاقة ائتمان" })}</SelectItem>
+            <SelectItem value="paypal">PayPal</SelectItem>
+          </Select>
+          {paymentMethod !== "clinic" && (
+            <Input
+              type={paymentMethod === "paypal" ? "email" : "text"}
+              inputMode={paymentMethod === "card" ? "numeric" : undefined}
+              autoComplete={paymentMethod === "card" ? "cc-number" : "email"}
+              placeholder={paymentMethod === "paypal" ? "you@example.com" : p({ en: "Card number", ar: "رقم البطاقة" })}
+              aria-label={paymentMethod === "paypal" ? "PayPal email" : "Card number"}
+              value={paymentDetail}
+              onChange={function (e) { setPaymentDetail(e.target.value); }}
+            />
+          )}
         </div>
         {/* Optional notes — left empty by default per booking.notesHint. */}
         <div className="flex flex-col gap-1.5">
@@ -1564,12 +1602,20 @@ function PatientHome(_a) {
   var user = useStore(function (s) { return s.user; });
   var [qrOpen, setQrOpen] = useState(false);
 
-  /* Merge saved bookings (newest first) with the mock appointment list so
-   * newly created bookings surface at the top. useMemo because the merge
-   * only needs to run once per mount. */
-  var appointments = useMemo(function () {
+  function loadAppointments() {
     var saved = ApiService.getAppointments();
     return saved.concat(MCData.patientAppointments).slice(0, 6);
+  }
+  var [appointments, setAppointments] = useState(loadAppointments);
+
+  useEffect(function () {
+    function refreshAppointments() {
+      setAppointments(loadAppointments());
+    }
+    window.addEventListener("mc:appointments-updated", refreshAppointments);
+    return function () {
+      window.removeEventListener("mc:appointments-updated", refreshAppointments);
+    };
   }, []);
 
   var featured = MCData.doctors.slice(0, 6);
@@ -2043,6 +2089,39 @@ function PatientProfile() {
   var [email, setEmail] = useState((user && user.email) || "");
   var [shareRecords, setShareRecords] = useState(true);
   var [communityVisible, setCommunityVisible] = useState(false);
+  var [savedPayment, setSavedPayment] = useState(function () { return ApiService.getUserPayment(); });
+  var [paymentMethod, setPaymentMethod] = useState(function () {
+    var method = ApiService.getUserPayment();
+    return method ? method.type : "card";
+  });
+  var [paymentDetail, setPaymentDetail] = useState(function () {
+    var method = ApiService.getUserPayment();
+    return method ? method.detail : "";
+  });
+
+  function handleSavePayment() {
+    var detail = paymentDetail.trim();
+    if (!detail) {
+      toast.error(p({ en: "Enter your payment detail", ar: "أدخل بيانات الدفع" }));
+      return;
+    }
+    if (paymentMethod === "paypal" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(detail)) {
+      toast.error(p({ en: "Enter a valid PayPal email", ar: "أدخل بريد PayPal صالحًا" }));
+      return;
+    }
+    var saved = ApiService.saveUserPayment({
+      type: paymentMethod,
+      detail: detail,
+      verified: true,
+    });
+    if (!saved) {
+      toast.error(p({ en: "Could not save payment method", ar: "تعذر حفظ طريقة الدفع" }));
+      return;
+    }
+    setSavedPayment(saved);
+    toast.success(p({ en: "Payment method verified and saved", ar: "تم التحقق من طريقة الدفع وحفظها" }));
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -2081,6 +2160,43 @@ function PatientProfile() {
           </Card>
         </section>
       </div>
+      <Card className="p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <SectionTitle title={p({ en: "Saved Payment Method", ar: "طريقة الدفع المحفوظة" })} icon="CreditCard" />
+          {savedPayment && savedPayment.verified && savedPayment.type === paymentMethod && savedPayment.detail === paymentDetail && (
+            <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              {p({ en: "Verified", ar: "موثّق" })}
+            </span>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>{p({ en: "Payment Type", ar: "نوع الدفع" })}</Label>
+            <Select value={paymentMethod} onValueChange={function (value) {
+              setPaymentMethod(value);
+              setPaymentDetail(savedPayment && value === savedPayment.type ? savedPayment.detail : "");
+            }}>
+              <SelectItem value="card">{p({ en: "Credit Card", ar: "بطاقة ائتمان" })}</SelectItem>
+              <SelectItem value="paypal">PayPal</SelectItem>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>{paymentMethod === "paypal" ? p({ en: "PayPal Email", ar: "بريد PayPal" }) : p({ en: "Card Number", ar: "رقم البطاقة" })}</Label>
+            <Input
+              type={paymentMethod === "paypal" ? "email" : "text"}
+              inputMode={paymentMethod === "card" ? "numeric" : undefined}
+              autoComplete={paymentMethod === "card" ? "cc-number" : "email"}
+              placeholder={paymentMethod === "paypal" ? "you@example.com" : p({ en: "Enter card number", ar: "أدخل رقم البطاقة" })}
+              value={paymentDetail}
+              onChange={function (e) { setPaymentDetail(e.target.value); }}
+            />
+          </div>
+        </div>
+        <Button onClick={handleSavePayment} className="mt-4 bg-teal-600 hover:bg-teal-700">
+          <Icon name="ShieldCheck" className="size-4" />
+          {p({ en: "Verify & Save", ar: "تحقق واحفظ" })}
+        </Button>
+      </Card>
       <Card className="p-4">
         <SectionTitle title={t("profile.language")} icon="Languages" />
         <div className="flex gap-2">
