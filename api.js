@@ -188,7 +188,7 @@ window.ApiService = (function () {
    * works 100% offline with zero configuration.
    * =================================================================== */
   var GEMINI_API_KEY = ""; // <-- paste a key here to enable live Gemini
-  var GEMINI_MODEL = "gemini-2.5-flash";
+  var GEMINI_MODEL = "gemini-3.5-flash-lite";
   var GEMINI_ENDPOINT =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
     GEMINI_MODEL +
